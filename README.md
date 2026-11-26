@@ -102,7 +102,7 @@ Then reserve every device's IP address in the router (DHCP reservation), so the 
 | Installer stuck on `DHCPv4` for Wi-Fi | Wrong Wi-Fi password, or Wi-Fi card not ready | Continue without network, then run `setup-wifi.sh` after the install |
 | `netplan apply`: error at `8:11` | YAML indentation or a missing `:` on the line **above** the reported line | Use `setup-wifi.sh`, it writes the YAML for you |
 | `networkd backend does not support wifi with match` | The installer left `/etc/netplan/00-installer-config.yaml` that matches Wi-Fi by MAC address. `sudo netplan get` shows a `macaddress` that is not in your file. | Move that file out of `/etc/netplan` (`setup-wifi.sh` does this and keeps a backup) |
-| Console floods with `dptf` messages (Surface) | Intel thermal driver info messages | `sudo dmesg -n 1` now, `setup-console.sh` permanently |
+| Console floods with `dptf_power` messages (Surface), and they come back after reboot | Intel power driver messages; `dmesg -n 1` is temporary | `setup-console.sh`: sets `kernel.printk` permanently and blacklists `dptf_power` |
 | Android app says `Cannot reach server` | Read the app log: `adb logcat -d -s <TAG>`. In this lab the log showed the app calling `10.0.2.2` (the emulator default) because the Server URL setting was never saved. | Save the correct server URL. Also logged as a bug: the app shows the same message for every failure, which hides the real cause. |
 
 ---

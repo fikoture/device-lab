@@ -5,7 +5,8 @@
 # Usage:   sudo ./setup-console.sh          (large font only)
 #          sudo ./setup-console.sh 1500x1000 (large font + lower console resolution, needs a reboot)
 #
-# Also stops kernel info messages (like Intel dptf messages on Surface) from flooding the console.
+# Also stops kernel info messages from flooding the console, and on Surface laptops disables the
+# dptf_power driver that prints them (set BLACKLIST_DPTF=1 to force this on other machines).
 
 set -euo pipefail
 
@@ -23,7 +24,14 @@ echo "Console font set to Terminus 16x32."
 # 2. Keep kernel info messages off the console (they are still in the log: dmesg / journalctl -k).
 echo "kernel.printk = 3 4 1 3" > /etc/sysctl.d/20-quiet-console.conf
 sysctl -q -p /etc/sysctl.d/20-quiet-console.conf
-echo "Kernel console messages limited to errors."
+echo "Kernel console messages limited to critical ones."
+
+# 2b. Surface laptops: the dptf_power driver floods the console. A plugged-in server does not need it.
+if grep -qi "surface" /sys/class/dmi/id/product_name 2>/dev/null || [ "${BLACKLIST_DPTF:-0}" = "1" ]; then
+    echo "blacklist dptf_power" > /etc/modprobe.d/blacklist-dptf.conf
+    update-initramfs -u
+    echo "dptf_power driver disabled (takes full effect after reboot)."
+fi
 
 # 3. Optional: lower console resolution so the text is even bigger.
 RES="${1:-}"
