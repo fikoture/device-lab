@@ -27,6 +27,7 @@ Flow: push to GitHub → Jenkins sees the change → Jenkins sends the job to th
 |---|---|
 | `scripts/setup-wifi.sh` | Connects Ubuntu Server to Wi-Fi with netplan. No YAML editing by hand. Asks for the Wi-Fi name and password, backs up conflicting installer files, writes the config with the right indentation and `600` permissions, applies it and prints the IP address. |
 | `scripts/setup-console.sh` | Makes the text console readable on high-resolution screens (largest Terminus font, optional lower console resolution) and stops kernel info messages from flooding the console. |
+| `scripts/setup-surface-gpu.sh` | Makes the NVIDIA GPU in a Surface Book 2 usable on Ubuntu Server (linux-surface kernel + NVIDIA 580 server driver), for running local AI models on the GPU. Tested: `nvidia-smi` shows the GTX 1060 with 6 GB, CUDA 13.0. |
 | `scripts/setup-jenkins.sh` | Coming next: installs Java 21 and Jenkins LTS from the official Jenkins repository. |
 
 ---
@@ -104,6 +105,8 @@ Then reserve every device's IP address in the router (DHCP reservation), so the 
 | `networkd backend does not support wifi with match` | The installer left `/etc/netplan/00-installer-config.yaml` that matches Wi-Fi by MAC address. `sudo netplan get` shows a `macaddress` that is not in your file. | Move that file out of `/etc/netplan` (`setup-wifi.sh` does this and keeps a backup) |
 | Console floods with `dptf_power` messages (Surface), and they come back after reboot | Intel power driver messages; `dmesg -n 1` is temporary | `setup-console.sh`: sets `kernel.printk` permanently and blacklists `dptf_power` |
 | Console floods with `nouveau` errors (NVIDIA GPU, Surface Book) | Open-source NVIDIA driver does not handle the detachable GPU well | `setup-console.sh` blacklists `nouveau` and adds `quiet loglevel=3` to the boot line. The proprietary NVIDIA driver comes later, only if the GPU is needed. |
+| `lspci` shows no NVIDIA GPU on a Surface Book 2 | The stock Ubuntu kernel does not bring up the GPU in the keyboard base | Install the linux-surface kernel and reboot (`setup-surface-gpu.sh`); the GTX 1060 then appears in `lspci` |
+| NVIDIA driver choice for GTX 10xx | Pascal GPUs are not supported by the `-open` kernel modules, and 580 is the last branch that supports them | Use `nvidia-headless-580-server` + `nvidia-utils-580-server` (no desktop parts on a server) |
 | Android app says `Cannot reach server` | Read the app log: `adb logcat -d -s <TAG>`. In this lab the log showed the app calling `10.0.2.2` (the emulator default) because the Server URL setting was never saved. | Save the correct server URL. Also logged as a bug: the app shows the same message for every failure, which hides the real cause. |
 
 ---
