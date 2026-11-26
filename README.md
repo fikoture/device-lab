@@ -1,0 +1,120 @@
+# Device Lab: Jenkins + Real Android Devices at Home
+
+**by Fikret (Ryan) Ture**
+
+A small, realistic test lab built the way a QA team sets one up at work: a laptop for writing tests, a headless Linux server for Jenkins, a test machine with the web portal and fake devices, and real Android devices connected over Wi-Fi.
+
+Every setup step lives in a script in this repo, so a new server can be prepared with one command instead of by memory (Infrastructure as Code).
+
+---
+
+## Architecture
+
+| Machine | Role at a company | What runs on it |
+|---|---|---|
+| Mac mini | Engineer's work laptop | Writes tests, pushes to GitHub |
+| Surface Book (Ubuntu Server, no desktop) | Jenkins server | Jenkins controller |
+| MacBook | Test lab machine | Web portal, 6 simulated devices, Jenkins agent |
+| Android tablet + phone | Real test devices | Connected to the lab with adb over Wi-Fi |
+
+Flow: push to GitHub → Jenkins sees the change → Jenkins sends the job to the agent → the agent runs the tests on the portal, the simulated devices and the real devices → results go back to Jenkins.
+
+---
+
+## Scripts
+
+| Script | What it does |
+|---|---|
+| `scripts/setup-wifi.sh` | Connects Ubuntu Server to Wi-Fi with netplan. No YAML editing by hand. Asks for the Wi-Fi name and password, backs up conflicting installer files, writes the config with the right indentation and `600` permissions, applies it and prints the IP address. |
+| `scripts/setup-console.sh` | Makes the text console readable on high-resolution screens (largest Terminus font, optional lower console resolution) and stops kernel info messages from flooding the console. |
+| `scripts/setup-jenkins.sh` | Coming next: installs Java 21 and Jenkins LTS from the official Jenkins repository. |
+
+---
+
+## Setting up the Jenkins server from zero
+
+### 1. Install Ubuntu Server
+
+1. Download the latest **Ubuntu Server LTS** ISO from ubuntu.com and verify it:
+   ```bash
+   grep "live-server-amd64" SHA256SUMS | shasum -a 256 -c
+   ```
+2. Write it to a USB stick with balenaEtcher.
+3. Boot the laptop from the stick (Surface: hold **Volume Down**, press **Power**).
+4. In the installer: choose **Ubuntu Server** (not minimized), tick **Search for third-party drivers**, and tick **Install OpenSSH server**.
+
+> Use a **USB flash drive**, not a bus-powered external hard disk. On the Surface Book, a 2 TB USB hard disk did not get enough power to boot the installer ("can't open blockdev" errors). An 8 GB flash drive worked right away.
+
+### 2. Connect to Wi-Fi
+
+If Wi-Fi did not work during the install, copy `setup-wifi.sh` to a USB stick, plug it into the server, and run:
+
+```bash
+lsblk                                  # find the stick, for example sdb1
+sudo mount /dev/sdb1 /mnt
+sudo bash /mnt/setup-wifi.sh
+```
+
+If the server already has a network, clone this repo and run `sudo ./scripts/setup-wifi.sh`.
+
+### 3. Work from your laptop over SSH
+
+```bash
+ssh <user>@<server-ip>
+```
+
+From here on, everything is copy and paste from the laptop. Nobody needs to sit at the server.
+
+### 4. Make the console readable (optional)
+
+```bash
+sudo ./scripts/setup-console.sh            # large font
+sudo ./scripts/setup-console.sh 1500x1000  # large font + lower resolution, then reboot
+```
+
+---
+
+## Android devices over Wi-Fi
+
+```bash
+# One time, per device: Settings > Developer options > Wireless debugging > Pair device with pairing code
+adb pair <device-ip>:<pairing-port>
+adb connect <device-ip>:<port>
+
+# Switch to a fixed port, so the address never changes until the device reboots
+adb -s <device-ip>:<port> tcpip 5555
+adb connect <device-ip>:5555           # wait 3 seconds after tcpip before connecting
+
+# Keep the screen on (tablets in a lab are always on charge)
+adb -s <device-ip>:5555 shell settings put system screen_off_timeout 2147483647
+adb -s <device-ip>:5555 shell settings get system screen_off_timeout   # verify
+```
+
+Then reserve every device's IP address in the router (DHCP reservation), so the lab addresses stay the same forever.
+
+---
+
+## Troubleshooting (real problems from building this lab)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `Unable to find a medium containing a live file system` / `can't open blockdev` while booting the installer | Bus-powered USB hard disk does not get enough power, or spins up too slowly | Use a USB flash drive. For slow disks, `rootdelay=30` on the boot line can help. |
+| Installer stuck on `DHCPv4` for Wi-Fi | Wrong Wi-Fi password, or Wi-Fi card not ready | Continue without network, then run `setup-wifi.sh` after the install |
+| `netplan apply`: error at `8:11` | YAML indentation or a missing `:` on the line **above** the reported line | Use `setup-wifi.sh`, it writes the YAML for you |
+| `networkd backend does not support wifi with match` | The installer left `/etc/netplan/00-installer-config.yaml` that matches Wi-Fi by MAC address. `sudo netplan get` shows a `macaddress` that is not in your file. | Move that file out of `/etc/netplan` (`setup-wifi.sh` does this and keeps a backup) |
+| Console floods with `dptf` messages (Surface) | Intel thermal driver info messages | `sudo dmesg -n 1` now, `setup-console.sh` permanently |
+| Android app says `Cannot reach server` | Read the app log: `adb logcat -d -s <TAG>`. In this lab the log showed the app calling `10.0.2.2` (the emulator default) because the Server URL setting was never saved. | Save the correct server URL. Also logged as a bug: the app shows the same message for every failure, which hides the real cause. |
+
+---
+
+## Security notes
+
+- **No port forwarding.** adb on port 5555 must never be reachable from the internet: anyone could install apps on the device or read its data. Everything stays on the local network.
+- **No secrets in the repo.** `setup-wifi.sh` asks for the Wi-Fi password at run time. The config file it writes is readable only by root (`600`).
+- **The Jenkins server is headless and managed over SSH**, the same way production servers are.
+
+---
+
+## License
+
+MIT
