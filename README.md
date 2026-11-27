@@ -119,6 +119,23 @@ Then reserve every device's IP address in the router (DHCP reservation), so the 
 
 ---
 
+## RyanAI: local chat on the AI server
+
+Open WebUI (a chat page like Claude's) runs on the AI server in Docker, named RyanAI, and talks to Ollama on the same machine:
+
+```bash
+sudo docker run -d --network=host -e OLLAMA_BASE_URL=http://127.0.0.1:11434 -e WEBUI_NAME=RyanAI \
+  -v open-webui:/app/backend/data --name open-webui --restart always ghcr.io/open-webui/open-webui:main
+```
+
+Open `http://<ai-server-ip>:8080`. The first account created becomes the admin, so create it right away, then turn off new sign-ups.
+
+`ai/ryanai_auto.py` adds a model named **RyanAI Auto** that picks the best local model for each message: images go to the vision model, code and error messages to the code model, long or "analyze / step by step" requests to the big model, everything else to the fast model. Each answer starts with the model it used, so the routing can be checked by tests. If a model fails, it answers with a fallback model. Install: Admin Panel > Functions > + > paste the file > Save > enable.
+
+Remote access: no port forwarding. Use a private network (Tailscale) or Cloudflare Tunnel with Cloudflare Access in front.
+
+---
+
 ## Security notes
 
 - **No port forwarding.** adb on port 5555 must never be reachable from the internet: anyone could install apps on the device or read its data. Everything stays on the local network.
