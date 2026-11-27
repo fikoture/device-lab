@@ -45,6 +45,40 @@ VOICES = {
     "female-1": "Ana Florence", "female-2": "Claribel Dervla", "female-3": "Daisy Studious",
     "male-1": "Damien Black", "male-2": "Craig Gutsy", "male-3": "Viktor Eka",
 }
+SPEAKERS_FILE = os.path.join(os.environ.get("HOME", "/opt/ryanai-voice"), ".local", "share", "tts",
+                             "tts_models--multilingual--multi-dataset--xtts_v2", "speakers_xtts.pth")
+
+
+_SPEAKER_CACHE = []
+
+
+def load_speaker_names():
+    """All built-in XTTS v2 speakers, read from the model's speaker file (small, no GPU needed).
+    Falls back to the six default voices if the model has not been downloaded yet."""
+    if _SPEAKER_CACHE:
+        return _SPEAKER_CACHE
+    try:
+        import torch
+        data = torch.load(SPEAKERS_FILE, map_location="cpu", weights_only=False)
+        names = sorted(data.keys())
+        if names:
+            _SPEAKER_CACHE.extend(names)
+            return names
+    except Exception:
+        pass
+    return sorted(VOICES.values())
+
+
+def resolve_voice(name: str):
+    """Accepts an easy name (female-1), an OpenAI name (alloy) or a full speaker name (Ana Florence)."""
+    name = OPENAI_NAMES.get(name, name)
+    if name in VOICES:
+        return VOICES[name]
+    if name in load_speaker_names():
+        return name
+    return None
+
+
 OPENAI_NAMES = {"alloy": "female-1", "nova": "female-2", "shimmer": "female-3",
                 "onyx": "male-1", "echo": "male-2", "fable": "male-3"}
 TURKISH_LETTERS = re.compile(r"[çğıöşüÇĞİÖŞÜ]")
@@ -126,7 +160,7 @@ class Engine:
             self.last_used = time.time()
             audio = []
             for piece, pause in pieces(text):
-                wav = self.tts.tts(text=piece, speaker=VOICES[voice], language=language,
+                wav = self.tts.tts(text=piece, speaker=voice, language=language,
                                    split_sentences=False, speed=speed)
                 audio.append(np.asarray(wav, dtype=np.float32))
                 if pause:
@@ -136,7 +170,7 @@ class Engine:
 
 
 engine = Engine()
-app = FastAPI(title="RyanAI Voice", version="0.2.0")
+app = FastAPI(title="RyanAI Voice", version="0.3.0")
 
 
 def check_key(authorization: str, x_api_key: str):
@@ -192,7 +226,7 @@ def health():
 @app.get("/v1/voices")
 def voices(authorization: str = Header(default=""), x_api_key: str = Header(default="")):
     check_key(authorization, x_api_key)
-    return {"voices": [{"id": k, "speaker": v} for k, v in VOICES.items()]}
+    return {"voices": load_speaker_names(), "aliases": VOICES}
 
 
 @app.post("/v1/audio/speech")
@@ -203,9 +237,9 @@ def speech(body: SpeechBody, authorization: str = Header(default=""), x_api_key:
         raise HTTPException(400, detail="input is empty")
     if len(text) > MAX_CHARS:
         raise HTTPException(400, detail=f"input is longer than {MAX_CHARS} characters; split it into parts")
-    voice = OPENAI_NAMES.get(body.voice, body.voice)
-    if voice not in VOICES:
-        raise HTTPException(400, detail=f"voice must be one of: {', '.join(VOICES)}")
+    voice = resolve_voice(body.voice)
+    if voice is None:
+        raise HTTPException(400, detail="unknown voice; see /v1/voices for the list")
     fmt = body.response_format.lower()
     if fmt not in ("mp3", "wav"):
         raise HTTPException(400, detail="response_format must be mp3 or wav")
@@ -214,7 +248,7 @@ def speech(body: SpeechBody, authorization: str = Header(default=""), x_api_key:
     audio = to_wav(engine.speak(text, voice, language, body.speed))
     if fmt == "mp3":
         audio = to_mp3(audio)
-    headers = {"X-Language": language, "X-Voice": voice, "X-Seconds": f"{time.time() - started:.1f}",
+    headers = {"X-Language": language, "X-Voice": voice.encode("ascii", "replace").decode(), "X-Seconds": f"{time.time() - started:.1f}",
                "Content-Disposition": f'attachment; filename="ryanai-voice.{fmt}"'}
     return Response(audio, media_type="audio/mpeg" if fmt == "mp3" else "audio/wav", headers=headers)
 
@@ -252,12 +286,16 @@ PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name=
   <div><label for="fmt">File</label><select id="fmt"><option value="mp3">MP3</option><option value="wav">WAV</option></select></div>
 </div>
 <button id="go">Create audio</button>
+<button id="try" style="background:transparent;border:1px solid var(--line);color:var(--ink);margin-top:10px">Try this voice with a short sample</button>
 <div class="msg" id="msg" role="status"></div>
 <div class="out" id="out"><audio id="player" controls></audio><a id="dl" download>Download the file</a></div>
 </main><script>
 const $ = id => document.getElementById(id);
 try { $('key').value = localStorage.getItem('voice_key') || ''; } catch (e) {}
 $('text').oninput = () => $('count').textContent = $('text').value.length + ' / %MAX%';
+$('try').onclick = () => { const saved = $('text').value;
+  $('text').value = $('lang').value === 'en' ? 'Hello, this is how this voice sounds.' : 'Merhaba, bu sesin nasıl duyulduğunu dinliyorsunuz.';
+  $('go').onclick().finally(() => { $('text').value = saved; $('text').oninput(); }); };
 $('go').onclick = async () => {
   const text = $('text').value.trim(); const m = $('msg');
   if (!text) { m.className = 'msg bad'; m.textContent = 'Paste a text first.'; return; }
@@ -280,7 +318,7 @@ $('go').onclick = async () => {
 
 @app.get("/", response_class=HTMLResponse)
 def page():
-    opts = "".join(f'<option value="{k}">{k.replace("-", " ").title()}</option>' for k in VOICES)
+    opts = "".join(f'<option value="{n}">{n}</option>' for n in load_speaker_names())
     return PAGE.replace("%VOICES%", opts).replace("%MAX%", str(MAX_CHARS))
 
 
