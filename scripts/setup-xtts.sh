@@ -14,6 +14,7 @@
 #     (needed by XTTS) has CUDA 12.6 wheels only up to 2.11, so torch and torchaudio are both pinned to 2.11.0 cu126,
 #     and kept pinned for every later
 #     pip install (constraints file), otherwise coqui-tts would pull a newer torch that runs on the CPU only.
+#   - transformers is pinned to 4.57.6: the 5.x line breaks XTTS (idiap/coqui-ai-TTS issue 558).
 #   - The model is loaded on first use and unloaded after 5 idle minutes, so Ollama gets the GPU back.
 
 set -euo pipefail
@@ -45,7 +46,8 @@ python3 -m venv "$DIR/venv"
 PIP="$DIR/venv/bin/pip"
 "$PIP" install --upgrade pip
 "$PIP" install "torch==$TORCH" "torchaudio==$TORCH" --index-url "$INDEX"
-printf 'torch==%s\ntorchaudio==%s\n' "$TORCH" "$TORCH" > "$DIR/constraints.txt"
+# transformers 5.x breaks XTTS generation (past_key_values is None in gpt_inference); 4.57.6 works.
+printf 'torch==%s\ntorchaudio==%s\ntransformers==4.57.6\n' "$TORCH" "$TORCH" > "$DIR/constraints.txt"
 # six: coqui-tts imports it but does not list it as a dependency (fails on Python 3.14 without it)
 "$PIP" install -c "$DIR/constraints.txt" coqui-tts torchcodec six fastapi "uvicorn[standard]" numpy
 "$DIR/venv/bin/python" -c "from TTS.api import TTS" && echo "TTS import ok"
