@@ -2,7 +2,7 @@
 title: RyanAI Auto
 author: Fikret (Ryan) Ture
 description: Picks the best local model for each message, decides whether it should think, and streams its answer.
-version: 0.3.0
+version: 0.4.0
 """
 # Open WebUI "Pipe" function. Install: Admin Panel > Functions > + > paste this file > Save > enable.
 # It shows up as a model named "RyanAI Auto". Change which model does which job under the function's Valves.
@@ -103,6 +103,8 @@ class Pipe:
         SHOW_MODEL: bool = Field(default=True, description="Start each answer with the model name")
         THINK_ON_DEEP: bool = Field(default=True, description="Let the model think first on deep requests")
         READ_TIMEOUT_S: int = Field(default=180, description="Give up if the model sends nothing for this many seconds")
+        MAX_SYSTEM_CHARS: int = Field(default=1500, description="Drop system messages longer than this (Open WebUI tool and task instructions slow small models and hurt their Turkish)")
+        KEEP_TURNS: int = Field(default=10, description="Send only the last N user/assistant messages")
 
     def __init__(self):
         self.valves = self.Valves()
@@ -162,12 +164,33 @@ class Pipe:
         if in_think:
             yield "\n</think>\n\n"
 
+    def _trim(self, messages: List[dict]):
+        """Keeps short system messages and the last KEEP_TURNS turns. Returns (messages, chars_in, dropped_chars)."""
+        system, turns, dropped = [], [], 0
+        for m in messages:
+            if m.get("role") == "system":
+                text, _ = text_and_images(m)
+                if len(text) <= self.valves.MAX_SYSTEM_CHARS:
+                    system.append(m)
+                else:
+                    dropped += len(text)
+            else:
+                turns.append(m)
+        if self.valves.KEEP_TURNS > 0:
+            turns = turns[-self.valves.KEEP_TURNS:]
+        kept = system + turns
+        chars = sum(len(text_and_images(m)[0]) for m in kept)
+        return kept, chars, dropped
+
     async def pipe(self, body: dict, __user__: dict = None) -> AsyncIterator[str]:
-        model, reason = choose(body.get("messages", []), self.valves)
+        messages, chars_in, dropped = self._trim(body.get("messages", []))
+        body = {**body, "messages": messages}
+        model, reason = choose(messages, self.valves)
         think = reason == "deep" and self.valves.THINK_ON_DEEP
 
         if self.valves.SHOW_MODEL:
-            yield f"*{model} ({reason})*\n\n"
+            note = f", {chars_in} chars in" + (f", {dropped} chars of system text dropped" if dropped else "")
+            yield f"*{model} ({reason}{note})*\n\n"
         try:
             async for piece in self._stream(model, body, think):
                 yield piece
