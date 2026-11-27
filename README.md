@@ -30,6 +30,7 @@ Flow: push to GitHub → Jenkins sees the change → Jenkins sends the job to th
 | `scripts/setup-console.sh` | Makes the text console readable on high-resolution screens (largest Terminus font, optional lower console resolution) and stops kernel info messages from flooding the console. |
 | `scripts/setup-surface-gpu.sh` | Makes the NVIDIA GPU in a Surface Book 2 usable on Ubuntu Server (linux-surface kernel + NVIDIA 580 server driver), for running local AI models on the GPU. Tested: `nvidia-smi` shows the GTX 1060 with 6 GB, CUDA 13.0. |
 | `scripts/setup-server-power.sh` | Keeps a laptop server running with the lid closed and never sleeping (logind lid settings + masked sleep targets). |
+| `scripts/setup-power-saving.sh` | Installs TLP so a laptop server uses less power on battery and goes back to normal on the charger. |
 | `scripts/setup-test-lab.sh` | Turns an Ubuntu Server machine into the test lab: Python venv, portal + 6 simulated devices as a systemd service that starts at boot and restarts on failure. |
 | `scripts/setup-jenkins.sh` | Coming next: installs Java 21 and Jenkins LTS from the official Jenkins repository. |
 
