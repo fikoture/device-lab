@@ -33,6 +33,7 @@ Flow: push to GitHub → Jenkins sees the change → Jenkins sends the job to th
 | `scripts/setup-power-saving.sh` | Installs TLP so a laptop server uses less power on battery and goes back to normal on the charger. |
 | `scripts/setup-xtts.sh` | RyanAI Voice: Coqui XTTS v2 text to speech (Turkish, English and more) as a systemd service on port 8020, with its own paste-and-download page and an OpenAI-style endpoint for Open WebUI. Pins PyTorch and torchaudio 2.11 + CUDA 12.6 (CUDA 12.8+ builds dropped Pascal GPUs; torchaudio cu126 stops at 2.11). Non-commercial license: run with `--agree-coqui-license`. |
 | `scripts/setup-chatterbox.sh` | Adds Chatterbox Multilingual (MIT license, Turkish) as a second RyanAI Voice engine in its own venv on 127.0.0.1:8021. The page's Engine menu switches between XTTS and Chatterbox; only one engine stays on the GPU at a time. |
+| `scripts/setup-ryanai-app.sh` | RyanAI, our own chat app on port 8090: accounts (each user sees only their chats), streaming answers, Auto model routing straight to Ollama (no hidden prompts or background jobs), thinking block, image input, read aloud via RyanAI Voice. Users: `sudo ryanai-user adduser <name>`. |
 | `scripts/setup-test-lab.sh` | Turns an Ubuntu Server machine into the test lab: Python venv, portal + 6 simulated devices as a systemd service that starts at boot and restarts on failure. |
 | `scripts/setup-jenkins.sh` | Coming next: installs Java 21 and Jenkins LTS from the official Jenkins repository. |
 

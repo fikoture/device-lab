@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RyanAI</title>
+<style>
+  :root {
+    --bg: #121417; --side: #181b1f; --panel: #1e2227; --line: #2b3037; --ink: #e9ecef; --soft: #a3acb6;
+    --faint: #6f7883; --accent: #6aa4ff; --accent-ink: #0b1626; --bad: #ff8a7a; --ok: #59c98a;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.6 -apple-system, "Segoe UI", system-ui, sans-serif; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  .hidden { display: none !important; }
+
+  /* sign in */
+  .signin { min-height: 100%; display: grid; place-items: center; padding: 24px; }
+  .signin form { width: 100%; max-width: 360px; }
+  .signin h1 { font-size: 34px; letter-spacing: -.01em; margin: 0 0 4px; }
+  .signin p { color: var(--soft); margin: 0 0 24px; }
+  .field { display: block; width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 10px; }
+  .field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .primary { width: 100%; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px;
+    padding: 12px; font-weight: 600; cursor: pointer; }
+  .err { color: var(--bad); font-size: 14px; min-height: 22px; margin-top: 10px; }
+
+  /* app */
+  .app { display: grid; grid-template-columns: 260px 1fr; height: 100%; }
+  aside { background: var(--side); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  .brand { padding: 18px 18px 10px; font-weight: 700; font-size: 18px; }
+  .newchat { margin: 4px 12px 10px; background: transparent; border: 1px solid var(--line); border-radius: 10px;
+    padding: 9px 12px; text-align: left; cursor: pointer; }
+  .newchat:hover { border-color: var(--soft); }
+  .chats { overflow-y: auto; flex: 1; padding: 0 8px 8px; }
+  .chat { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 8px; cursor: pointer;
+    color: var(--soft); font-size: 14px; }
+  .chat span { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .chat:hover, .chat.on { background: var(--panel); color: var(--ink); }
+  .chat button { opacity: 0; background: none; border: 0; color: var(--faint); cursor: pointer; padding: 0 4px; }
+  .chat:hover button { opacity: 1; }
+  .me { border-top: 1px solid var(--line); padding: 12px 18px; font-size: 14px; color: var(--soft);
+    display: flex; justify-content: space-between; }
+  .me button { background: none; border: 0; color: var(--soft); cursor: pointer; text-decoration: underline; }
+
+  main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .top { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
+  .top .title { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--soft); }
+  .top select { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  .menu { display: none; background: none; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+
+  .thread { flex: 1; overflow-y: auto; }
+  .inner { max-width: 760px; margin: 0 auto; padding: 28px 20px 12px; }
+  .empty { color: var(--faint); text-align: center; margin-top: 18vh; }
+  .empty h2 { color: var(--ink); font-size: 26px; margin: 0 0 6px; }
+  .msg { margin-bottom: 26px; }
+  .msg.user .body { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px;
+    margin-left: auto; width: fit-content; max-width: 85%; white-space: pre-wrap; }
+  .msg.user .img { margin-left: auto; width: fit-content; font-size: 13px; color: var(--faint); }
+  .msg.ai .body p { margin: 0 0 12px; }
+  .msg.ai .body h3, .msg.ai .body h4 { margin: 18px 0 8px; }
+  .msg.ai .body ul, .msg.ai .body ol { margin: 0 0 12px; padding-left: 22px; }
+  .msg.ai .body code { font-family: var(--mono); font-size: 14px; background: var(--panel); padding: 1px 5px; border-radius: 5px; }
+  .msg.ai .body pre { background: #0d0f12; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; overflow-x: auto; }
+  .msg.ai .body pre code { background: none; padding: 0; }
+  details.think { margin-bottom: 10px; color: var(--faint); font-size: 14px; }
+  details.think summary { cursor: pointer; }
+  details.think div { white-space: pre-wrap; border-left: 2px solid var(--line); padding: 6px 0 6px 12px; margin-top: 6px; }
+  .meta { display: flex; gap: 14px; align-items: center; font-size: 13px; color: var(--faint); margin-top: 4px; }
+  .meta button { background: none; border: 0; color: var(--soft); cursor: pointer; padding: 0; font-size: 13px; }
+  .meta button:hover { color: var(--ink); }
+  .notice { font-size: 13px; color: var(--bad); margin-bottom: 8px; }
+  .cursor::after { content: "▍"; color: var(--accent); }
+
+  .composer { border-top: 1px solid var(--line); padding: 14px 20px 18px; }
+  .box { max-width: 760px; margin: 0 auto; background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+    padding: 10px 10px 10px 14px; display: flex; gap: 8px; align-items: flex-end; }
+  .box:focus-within { border-color: var(--soft); }
+  .box textarea { flex: 1; background: transparent; border: 0; resize: none; max-height: 220px; padding: 6px 0; outline: none; }
+  .icon { background: transparent; border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; cursor: pointer; color: var(--soft); }
+  .send { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
+  .send:disabled { opacity: .45; cursor: default; }
+  .attached { max-width: 760px; margin: 0 auto 8px; font-size: 13px; color: var(--soft); }
+  .attached button { background: none; border: 0; color: var(--bad); cursor: pointer; }
+
+  @media (max-width: 760px) {
+    .app { grid-template-columns: 1fr; }
+    aside { position: fixed; inset: 0 30% 0 0; z-index: 5; transform: translateX(-100%); transition: transform .2s; }
+    aside.open { transform: none; }
+    .menu { display: inline-block; }
+  }
+  @media (prefers-reduced-motion: reduce) { aside { transition: none; } }
+</style></head>
+<body>
+
+<section class="signin hidden" id="signin">
+  <form id="loginForm" autocomplete="on">
+    <h1>RyanAI</h1>
+    <p>Private AI on Ryan's own server.</p>
+    <input class="field" id="name" placeholder="Name" autocomplete="username" required>
+    <input class="field" id="pw" type="password" placeholder="Password" autocomplete="current-password" required>
+    <button class="primary" type="submit">Sign in</button>
+    <div class="err" id="loginErr" role="alert"></div>
+  </form>
+</section>
+
+<div class="app hidden" id="app">
+  <aside id="side">
+    <div class="brand">RyanAI</div>
+    <button class="newchat" id="newChat">+ New chat</button>
+    <nav class="chats" id="chats" aria-label="Chats"></nav>
+    <div class="me"><span id="who"></span><button id="logout">Sign out</button></div>
+  </aside>
+  <main>
+    <div class="top">
+      <button class="menu" id="menu" aria-label="Chats">Chats</button>
+      <div class="title" id="title">New chat</div>
+      <select id="model" aria-label="Model"><option value="auto">Auto</option></select>
+    </div>
+    <div class="thread" id="thread"><div class="inner" id="inner"></div></div>
+    <div class="composer">
+      <div class="attached hidden" id="attached"></div>
+      <form class="box" id="form">
+        <button type="button" class="icon" id="attach" title="Add an image">Image</button>
+        <input type="file" id="file" accept="image/*" class="hidden">
+        <textarea id="input" rows="1" placeholder="Message RyanAI" aria-label="Message"></textarea>
+        <button class="send" id="send" type="submit">Send</button>
+      </form>
+    </div>
+  </main>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let chatId = null, busy = false, image = null;
+
+async function api(method, path, body) {
+  const r = await fetch(path, { method, headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body) });
+  if (r.status === 401) { showSignin(); throw new Error('signed out'); }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || ('HTTP ' + r.status));
+  return data;
+}
+
+function esc(s) { return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+// Small Markdown: code blocks, inline code, bold, headings, lists, paragraphs. Escapes everything first.
+function md(src) {
+  const blocks = [];
+  let s = esc(src).replace(/```[\w-]*\n?([\s\S]*?)```/g, (_, code) => { blocks.push(code); return `\u0000${blocks.length - 1}\u0000`; });
+  s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  const out = [];
+  let list = null;
+  for (const line of s.split('\n')) {
+    const ul = line.match(/^\s*[-*] (.*)/), ol = line.match(/^\s*\d+[.)] (.*)/), h = line.match(/^(#{1,4}) (.*)/);
+    if (ul || ol) {
+      const tag = ul ? 'ul' : 'ol';
+      if (list !== tag) { if (list) out.push(`</${list}>`); out.push(`<${tag}>`); list = tag; }
+      out.push(`<li>${(ul || ol)[1]}</li>`); continue;
+    }
+    if (list) { out.push(`</${list}>`); list = null; }
+    if (h) { out.push(`<h${h[1].length > 2 ? 4 : 3}>${h[2]}</h${h[1].length > 2 ? 4 : 3}>`); continue; }
+    if (line.trim() === '') { out.push(''); continue; }
+    out.push(`<p>${line}</p>`);
+  }
+  if (list) out.push(`</${list}>`);
+  return out.join('\n').replace(/<p>\u0000(\d+)\u0000<\/p>|\u0000(\d+)\u0000/g,
+    (_, a, b) => `<pre><code>${blocks[a ?? b]}</code></pre>`);
+}
+
+function showSignin() { $('app').classList.add('hidden'); $('signin').classList.remove('hidden'); }
+
+async function start() {
+  try {
+    const me = await api('GET', '/api/me');
+    $('who').textContent = me.name;
+    $('signin').classList.add('hidden'); $('app').classList.remove('hidden');
+    const m = await api('GET', '/api/models');
+    for (const name of m.models) { const o = document.createElement('option'); o.value = o.textContent = name; $('model').appendChild(o); }
+    await loadChats();
+    showEmpty();
+  } catch (e) { showSignin(); }
+}
+
+$('loginForm').onsubmit = async e => {
+  e.preventDefault(); $('loginErr').textContent = '';
+  try { await api('POST', '/api/login', { name: $('name').value, password: $('pw').value }); $('pw').value = ''; start(); }
+  catch (err) { $('loginErr').textContent = err.message; }
+};
+$('logout').onclick = async () => { await api('POST', '/api/logout').catch(() => {}); showSignin(); };
+$('menu').onclick = () => $('side').classList.toggle('open');
+
+async function loadChats() {
+  const { chats } = await api('GET', '/api/chats');
+  $('chats').innerHTML = chats.map(c => `<div class="chat ${c.id === chatId ? 'on' : ''}" data-id="${c.id}" data-testid="chat-item">
+    <span>${esc(c.title)}</span><button title="Delete chat" data-del="${c.id}">✕</button></div>`).join('');
+}
+$('chats').onclick = async e => {
+  const del = e.target.dataset.del;
+  if (del) { e.stopPropagation(); await api('DELETE', '/api/chats/' + del); if (+del === chatId) { chatId = null; showEmpty(); } loadChats(); return; }
+  const item = e.target.closest('.chat'); if (item) { openChat(+item.dataset.id); $('side').classList.remove('open'); }
+};
+$('newChat').onclick = () => { chatId = null; showEmpty(); loadChats(); $('input').focus(); };
+
+function showEmpty() {
+  $('title').textContent = 'New chat';
+  $('inner').innerHTML = `<div class="empty"><h2>What can I help with?</h2>Auto picks the right model for each message.</div>`;
+}
+
+async function openChat(id) {
+  chatId = id;
+  const c = await api('GET', '/api/chats/' + id);
+  $('title').textContent = c.title;
+  $('inner').innerHTML = '';
+  for (const m of c.messages) {
+    if (m.role === 'user') addUser(m.content, m.has_image);
+    else { const el = addAi(); fillAi(el, m.content, m.thinking); setMeta(el, m.model, m.reason, m.seconds); }
+  }
+  loadChats(); scrollDown();
+}
+
+function addUser(text, hasImage) {
+  const d = document.createElement('div'); d.className = 'msg user'; d.dataset.testid = 'msg-user';
+  d.innerHTML = (hasImage ? '<div class="img">Image attached</div>' : '') + (text ? `<div class="body">${esc(text)}</div>` : '');
+  $('inner').appendChild(d);
+}
+function addAi() {
+  const d = document.createElement('div'); d.className = 'msg ai'; d.dataset.testid = 'msg-ai';
+  d.innerHTML = '<div class="notices"></div><details class="think hidden"><summary>Thinking</summary><div></div></details><div class="body cursor"></div><div class="meta"></div>';
+  $('inner').appendChild(d); return d;
+}
+function fillAi(el, text, thinking) {
+  el.querySelector('.body').innerHTML = md(text || '');
+  el.querySelector('.body').dataset.raw = text || '';
+  el.querySelector('.body').classList.remove('cursor');
+  if (thinking) { const t = el.querySelector('.think'); t.classList.remove('hidden'); t.querySelector('div').textContent = thinking; }
+}
+function setMeta(el, model, reason, seconds) {
+  const meta = el.querySelector('.meta');
+  meta.innerHTML = `<span data-testid="answer-model">${esc(model || '')}</span><span>${esc(reason || '')}</span><span>${seconds} s</span>
+    <button data-act="copy">Copy</button><button data-act="speak">Read aloud</button>`;
+}
+$('inner').onclick = async e => {
+  const act = e.target.dataset.act; if (!act) return;
+  const raw = e.target.closest('.msg').querySelector('.body').dataset.raw || '';
+  if (act === 'copy') { navigator.clipboard.writeText(raw).catch(() => {}); e.target.textContent = 'Copied'; setTimeout(() => e.target.textContent = 'Copy', 1500); }
+  if (act === 'speak') {
+    e.target.textContent = 'Preparing audio...'; e.target.disabled = true;
+    try {
+      const r = await fetch('/api/speak', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: raw.slice(0, 5000) }) });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || 'HTTP ' + r.status);
+      new Audio(URL.createObjectURL(await r.blob())).play();
+      e.target.textContent = 'Read aloud';
+    } catch (err) { e.target.textContent = 'Audio failed: ' + err.message; }
+    e.target.disabled = false;
+  }
+};
+function scrollDown() { $('thread').scrollTop = $('thread').scrollHeight; }
+
+$('attach').onclick = () => $('file').click();
+$('file').onchange = () => {
+  const f = $('file').files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => { image = String(reader.result).split(',')[1];
+    $('attached').innerHTML = `Image: ${esc(f.name)} <button type="button" id="dropImg">Remove</button>`;
+    $('attached').classList.remove('hidden'); $('dropImg').onclick = () => { image = null; $('attached').classList.add('hidden'); $('file').value = ''; }; };
+  reader.readAsDataURL(f);
+};
+
+$('input').oninput = () => { const t = $('input'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 220) + 'px'; };
+$('input').onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('form').requestSubmit(); } };
+
+$('form').onsubmit = async e => {
+  e.preventDefault();
+  const text = $('input').value.trim();
+  if (busy || (!text && !image)) return;
+  busy = true; $('send').disabled = true;
+  try {
+    if (!chatId) { chatId = (await api('POST', '/api/chats')).id; $('inner').innerHTML = ''; }
+    addUser(text, !!image);
+    const img = image; image = null; $('attached').classList.add('hidden'); $('file').value = '';
+    $('input').value = ''; $('input').oninput();
+    const el = addAi(); scrollDown();
+    const r = await fetch(`/api/chats/${chatId}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, image: img, model: $('model').value }) });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || 'HTTP ' + r.status); }
+    const reader = r.body.getReader(), dec = new TextDecoder();
+    let buf = '', answer = '', thinking = '', model = '', reason = '';
+    for (;;) {
+      const { value, done } = await reader.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        const line = buf.slice(0, i); buf = buf.slice(i + 2);
+        if (!line.startsWith('data: ')) continue;
+        const ev = JSON.parse(line.slice(6));
+        if (ev.type === 'meta') { model = ev.model; reason = ev.reason; }
+        if (ev.type === 'notice') { el.querySelector('.notices').innerHTML += `<div class="notice">${esc(ev.text)}</div>`; answer = ''; thinking = ''; }
+        if (ev.type === 'think') { thinking += ev.text; const t = el.querySelector('.think'); t.classList.remove('hidden'); t.querySelector('div').textContent = thinking; }
+        if (ev.type === 'text') { answer += ev.text; el.querySelector('.body').innerHTML = md(answer); }
+        if (ev.type === 'done') { fillAi(el, answer || (ev.error ? 'No model could answer. ' + ev.error : ''), thinking); setMeta(el, ev.model, reason, ev.seconds); }
+        scrollDown();
+      }
+    }
+    loadChats();
+    $('title').textContent = (await api('GET', '/api/chats/' + chatId)).title;
+  } catch (err) {
+    const n = document.createElement('div'); n.className = 'notice'; n.textContent = 'Could not send: ' + err.message; $('inner').appendChild(n);
+  }
+  busy = false; $('send').disabled = false; $('input').focus();
+};
+
+start();
+</script>
+</body></html>
