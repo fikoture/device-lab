@@ -15,7 +15,7 @@
 #   - The Surface screen must be attached to the keyboard base; the GPU lives in the base.
 #   - Pascal GPUs (GTX 10xx) need the classic driver, not "-open", and the 580 branch is the
 #     last NVIDIA branch that supports them.
-#   - POWER: the 15" Surface Book 2 with GTX 1060 needs its 102 W charger on the keyboard base.
+#   - POWER: the 15" Surface Book 2 with GTX 1060 needs its 95 W charger on the keyboard base, and healthy batteries for GPU power peaks.
 #     With a 60 W charger and empty batteries the GPU falls off the bus under load (Xid 79),
 #     and Ollama falls back to the CPU. Check: cat /sys/class/power_supply/BAT*/capacity
 #   - Secure Boot was disabled on this machine. With Secure Boot on, also install
