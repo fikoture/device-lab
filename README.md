@@ -14,7 +14,8 @@ Every setup step lives in a script in this repo, so a new server can be prepared
 |---|---|---|
 | Mac mini | Engineer's work laptop | Writes tests, pushes to GitHub |
 | Surface Book (Ubuntu Server, no desktop) | Jenkins server | Jenkins controller |
-| MacBook | Test lab machine | Web portal, 6 simulated devices, Jenkins agent |
+| Surface Book (1st gen, Ubuntu Server) | Test lab (staging environment) | Web portal, 6 simulated devices (systemd service), Jenkins agent |
+| Surface Book 2 GPU | Local AI server | Ollama; GPU needs the 95 W charger (see Troubleshooting) |
 | Android tablet + phone | Real test devices | Connected to the lab with adb over Wi-Fi |
 
 Flow: push to GitHub → Jenkins sees the change → Jenkins sends the job to the agent → the agent runs the tests on the portal, the simulated devices and the real devices → results go back to Jenkins.
@@ -28,6 +29,8 @@ Flow: push to GitHub → Jenkins sees the change → Jenkins sends the job to th
 | `scripts/setup-wifi.sh` | Connects Ubuntu Server to Wi-Fi with netplan. No YAML editing by hand. Asks for the Wi-Fi name and password, backs up conflicting installer files, writes the config with the right indentation and `600` permissions, applies it and prints the IP address. |
 | `scripts/setup-console.sh` | Makes the text console readable on high-resolution screens (largest Terminus font, optional lower console resolution) and stops kernel info messages from flooding the console. |
 | `scripts/setup-surface-gpu.sh` | Makes the NVIDIA GPU in a Surface Book 2 usable on Ubuntu Server (linux-surface kernel + NVIDIA 580 server driver), for running local AI models on the GPU. Tested: `nvidia-smi` shows the GTX 1060 with 6 GB, CUDA 13.0. |
+| `scripts/setup-server-power.sh` | Keeps a laptop server running with the lid closed and never sleeping (logind lid settings + masked sleep targets). |
+| `scripts/setup-test-lab.sh` | Turns an Ubuntu Server machine into the test lab: Python venv, portal + 6 simulated devices as a systemd service that starts at boot and restarts on failure. |
 | `scripts/setup-jenkins.sh` | Coming next: installs Java 21 and Jenkins LTS from the official Jenkins repository. |
 
 ---
@@ -108,6 +111,8 @@ Then reserve every device's IP address in the router (DHCP reservation), so the 
 | `lspci` shows no NVIDIA GPU on a Surface Book 2 | The stock Ubuntu kernel does not bring up the GPU in the keyboard base | Install the linux-surface kernel and reboot (`setup-surface-gpu.sh`); the GTX 1060 then appears in `lspci` |
 | NVIDIA driver choice for GTX 10xx | Pascal GPUs are not supported by the `-open` kernel modules, and 580 is the last branch that supports them | Use `nvidia-headless-580-server` + `nvidia-utils-580-server` (no desktop parts on a server) |
 | Ollama shows `100% CPU`; Ollama debug log says `cuInit failed: 999`; kernel log shows `pciehp: Slot(4): Link Down` and `NVRM: Xid 79, GPU has fallen off the bus` when CUDA starts | Surface Book 2 15" with a **60 W** charger and both batteries at 0% "Not charging". The GTX 1060 draws more than the charger can give, and the empty batteries cannot cover the peak, so the GPU drops off the PCIe bus. Runtime PM off, persistence mode and `pcie_aspm=off` stopped the idle drop cycle but not the drop under load. | Use the original **102 W** (or 127 W) Surface charger on the keyboard base so the batteries charge and the GPU gets enough power. Until then, run models on the CPU. How it was found: `ollama ps` → `OLLAMA_DEBUG=1 ollama serve` → `dmesg` → `/sys/class/power_supply`. |
+| Browser on the Mac says "unreachable" for `http://<lab-ip>:8000`, but `curl` from Terminal works | macOS Local Network privacy: the browser has no permission to reach devices on the home network (localhost still works) | System Settings > Privacy & Security > Local Network > enable the browser, then restart the browser |
+| After `Ctrl+C` and starting the systemd service, a device answers but its `uptime_s` is older than the service | The manually started copy kept running in the background; the service copy could not bind the port | Reboot (or kill the old process). "Got an answer" is not the same as "the right process answered": check uptime. |
 | Android app says `Cannot reach server` | Read the app log: `adb logcat -d -s <TAG>`. In this lab the log showed the app calling `10.0.2.2` (the emulator default) because the Server URL setting was never saved. | Save the correct server URL. Also logged as a bug: the app shows the same message for every failure, which hides the real cause. |
 
 ---
