@@ -2,7 +2,7 @@
 title: RyanAI Auto
 author: Fikret (Ryan) Ture
 description: Picks the best local model for each message, decides whether it should think, and streams its answer.
-version: 0.2.0
+version: 0.2.1
 """
 # Open WebUI "Pipe" function. Install: Admin Panel > Functions > + > paste this file > Save > enable.
 # It shows up as a model named "RyanAI Auto". Change which model does which job under the function's Valves.
@@ -95,7 +95,7 @@ class Pipe:
     class Valves(BaseModel):
         OLLAMA_URL: str = Field(default="http://127.0.0.1:11434", description="Ollama address")
         FAST_MODEL: str = Field(default="qwen3.5:4b", description="Short everyday questions")
-        BIG_MODEL: str = Field(default="qwen3.5:9b", description="Long or hard work")
+        BIG_MODEL: str = Field(default="qwen3.5:4b", description="Long or hard work (thinks first). qwen3.5:9b is smarter but does not fit a 6 GB GPU and is too slow")
         CODE_MODEL: str = Field(default="qwen2.5-coder:7b", description="Code, errors, SQL, regex")
         VISION_MODEL: str = Field(default="gemma4:e2b", description="Messages with images")
         FALLBACK_MODEL: str = Field(default="llama3.2:3b", description="Used if the chosen model fails")
