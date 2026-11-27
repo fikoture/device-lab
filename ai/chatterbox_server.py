@@ -43,7 +43,10 @@ class Engine:
         import torch
         from chatterbox.mtl_tts import ChatterboxMultilingualTTS
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model = ChatterboxMultilingualTTS.from_pretrained(device=device, t3_model="v3")
+        try:   # newer source versions take t3_model; the PyPI release (0.1.7) does not
+            self.model = ChatterboxMultilingualTTS.from_pretrained(device=device, t3_model="v3")
+        except TypeError:
+            self.model = ChatterboxMultilingualTTS.from_pretrained(device=device)
         self.sr = self.model.sr
         self.device = device
 
@@ -80,7 +83,7 @@ class Engine:
 
 
 engine = Engine()
-app = FastAPI(title="RyanAI Voice - Chatterbox", version="0.1.0")
+app = FastAPI(title="RyanAI Voice - Chatterbox", version="0.1.1")
 
 
 class SpeakBody(BaseModel):
