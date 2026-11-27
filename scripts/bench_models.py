@@ -16,6 +16,7 @@ import json
 import os
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 
 OLLAMA = "http://127.0.0.1:11434"
@@ -41,6 +42,16 @@ TASKS = {
 
 
 def generate(model, prompt):
+    # think=False: models with a thinking mode (qwen3.5, nemotron) answer directly,
+    # so every model is measured under the same conditions.
+    body = json.dumps({"model": model, "prompt": prompt, "stream": False, "think": False}).encode()
+    req = urllib.request.Request(OLLAMA + "/api/generate", data=body,
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=600) as resp:
+        return json.loads(resp.read())
+
+
+def generate_plain(model, prompt):
     body = json.dumps({"model": model, "prompt": prompt, "stream": False}).encode()
     req = urllib.request.Request(OLLAMA + "/api/generate", data=body,
                                  headers={"Content-Type": "application/json"})
@@ -77,10 +88,21 @@ def main():
     for model in models:
         os.makedirs(os.path.join("results", model.replace(":", "_")), exist_ok=True)
         for task, prompt in TASKS.items():
+            print(f"{model:22} {task:7} running...", flush=True)
             try:
                 r = generate(model, prompt)
-            except Exception as e:  # model missing, server down, timeout
-                print(f"{model:22} {task:7} FAILED: {e}")
+            except urllib.error.HTTPError as e:
+                if e.code == 400:  # model without a thinking mode may reject "think"; retry without it
+                    try:
+                        r = generate_plain(model, prompt)
+                    except Exception as e2:
+                        print(f"{model:22} {task:7} FAILED: {e2}", flush=True)
+                        continue
+                else:
+                    print(f"{model:22} {task:7} FAILED: {e}", flush=True)
+                    continue
+            except Exception as e:  # server down, timeout
+                print(f"{model:22} {task:7} FAILED: {e}", flush=True)
                 continue
             tps = r["eval_count"] / (r["eval_duration"] / 1e9) if r.get("eval_duration") else 0
             load_s = r.get("load_duration", 0) / 1e9
@@ -90,7 +112,7 @@ def main():
             with open(path, "w") as f:
                 f.write(r.get("response", ""))
             rows.append((model, task, tps, load_s, where, mem))
-            print(f"{model:22} {task:7} {tps:6.1f} tok/s  load {load_s:5.1f}s  {where:9}  VRAM {mem} MB")
+            print(f"{model:22} {task:7} {tps:6.1f} tok/s  load {load_s:5.1f}s  {where:9}  VRAM {mem} MB", flush=True)
 
     print("\n| Model | Task | tokens/s | Load (s) | Runs on | VRAM (MB) |")
     print("|---|---|---|---|---|---|")
