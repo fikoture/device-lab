@@ -46,7 +46,9 @@ PIP="$DIR/venv/bin/pip"
 "$PIP" install --upgrade pip
 "$PIP" install "torch==$TORCH" "torchaudio==$TORCH" --index-url "$INDEX"
 printf 'torch==%s\ntorchaudio==%s\n' "$TORCH" "$TORCH" > "$DIR/constraints.txt"
-"$PIP" install -c "$DIR/constraints.txt" coqui-tts torchcodec fastapi "uvicorn[standard]" numpy
+# six: coqui-tts imports it but does not list it as a dependency (fails on Python 3.14 without it)
+"$PIP" install -c "$DIR/constraints.txt" coqui-tts torchcodec six fastapi "uvicorn[standard]" numpy
+"$DIR/venv/bin/python" -c "from TTS.api import TTS" && echo "TTS import ok"
 
 cp "$HERE/ai/xtts_server.py" "$DIR/xtts_server.py"
 
