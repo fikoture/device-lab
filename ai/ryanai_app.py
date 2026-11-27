@@ -59,7 +59,10 @@ CODE_HINTS = re.compile(
     r"\bkod\b|\bkodu\b|\bfonksiyon|\bhata mesaj", re.IGNORECASE)
 DEEP_HINTS = re.compile(
     r"\banaly[sz]e\b|\bin detail\b|\bstep by step\b|\bcompare\b|\bplan\b|\bstrategy\b|\bwhy\b|"
-    r"\banaliz|\bdetayl|\badim adim|\badım adım|\bkarsilastir|\bkarşılaştır|\bneden\b|\bstrateji", re.IGNORECASE)
+    r"\bexplain\b|\bhow does\b|\bpros and cons\b|\bthink\b|\bdeeply\b|"
+    r"\banaliz|\bdetayl|\bayr[iı]nt[iı]|\badim adim|\badım adım|\bkar[sş][iı]la[sş]t[iı]r|\bneden\b|\bniye\b|"
+    r"\bstrateji|\ba[cç][iı]kla|\banlat|\bnas[iı]l [cç]al[iı][sş]|\bavantaj|\bdezavantaj|\bart[iı]s[iı]|"
+    r"\bd[uü][sş][uü]n|\bderin|\bfelsef|\banlam[iı]\b|\bhangisi daha", re.IGNORECASE)
 
 
 def route(text: str, has_image: bool):
