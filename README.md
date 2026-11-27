@@ -130,7 +130,7 @@ sudo docker run -d --network=host -e OLLAMA_BASE_URL=http://127.0.0.1:11434 -e W
 
 Open `http://<ai-server-ip>:8080`. The first account created becomes the admin, so create it right away, then turn off new sign-ups.
 
-`ai/ryanai_auto.py` adds a model named **RyanAI Auto** that picks the best local model for each message: images go to the vision model, code and error messages to the code model, long or "analyze / step by step" requests to the big model, everything else to the fast model. Each answer starts with the model it used, so the routing can be checked by tests. If a model fails, it answers with a fallback model. Install: Admin Panel > Functions > + > paste the file > Save > enable.
+`ai/ryanai_auto.py` adds a model named **RyanAI Auto** that picks the best local model for each message: images go to the vision model, code and error messages to the code model, long or "analyze / step by step" requests to the big model, everything else to the fast model. Each answer starts with the model it used, so the routing can be checked by tests. Only deep requests think (on models that can), and the thinking shows in a fold-out block; quick, code and image answers come straight away. If a model fails, it answers with a fallback model. No per-model tuning is needed: the context size is set once for all models with `OLLAMA_CONTEXT_LENGTH=8192` in a systemd drop-in for ollama.service. Install: Admin Panel > Functions > + > paste the file > Save > enable.
 
 Remote access: no port forwarding. Use a private network (Tailscale) or Cloudflare Tunnel with Cloudflare Access in front.
 
