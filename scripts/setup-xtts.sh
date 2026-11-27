@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # setup-xtts.sh
 # Installs RyanAI Voice (Coqui XTTS v2 text to speech, Turkish and English) as a systemd service on the
-# AI server, on port 8020. Open WebUI can use it for "read aloud", and it has its own page for pasting
+# AI server, on port 8020. The RyanAI app uses it for "Read aloud", and it has its own page for pasting
 # a text and downloading the audio.
 #
 # Usage:  sudo ./setup-xtts.sh --agree-coqui-license

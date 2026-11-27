@@ -4,7 +4,7 @@ RyanAI Voice: text to speech with Coqui XTTS v2 on the AI server's GPU.
 What it serves (port 8020):
   GET  /                    a simple page: paste text, pick language and voice, listen and download
   GET  /v1/voices           the voices this server has
-  POST /v1/audio/speech     OpenAI style endpoint, so Open WebUI's "read aloud" can use it
+  POST /v1/audio/speech     OpenAI style endpoint (the RyanAI app's Read aloud uses it)
   GET  /health              status, for checks and tests
 
 Turkish and English (plus the other XTTS languages). The text is split into sentences here, not by XTTS:

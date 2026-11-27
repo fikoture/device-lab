@@ -31,7 +31,7 @@ Flow: push to GitHub → Jenkins sees the change → Jenkins sends the job to th
 | `scripts/setup-surface-gpu.sh` | Makes the NVIDIA GPU in a Surface Book 2 usable on Ubuntu Server (linux-surface kernel + NVIDIA 580 server driver), for running local AI models on the GPU. Tested: `nvidia-smi` shows the GTX 1060 with 6 GB, CUDA 13.0. |
 | `scripts/setup-server-power.sh` | Keeps a laptop server running with the lid closed and never sleeping (logind lid settings + masked sleep targets). |
 | `scripts/setup-power-saving.sh` | Installs TLP so a laptop server uses less power on battery and goes back to normal on the charger. |
-| `scripts/setup-xtts.sh` | RyanAI Voice: Coqui XTTS v2 text to speech (Turkish, English and more) as a systemd service on port 8020, with its own paste-and-download page and an OpenAI-style endpoint for Open WebUI. Pins PyTorch and torchaudio 2.11 + CUDA 12.6 (CUDA 12.8+ builds dropped Pascal GPUs; torchaudio cu126 stops at 2.11). Non-commercial license: run with `--agree-coqui-license`. |
+| `scripts/setup-xtts.sh` | RyanAI Voice: Coqui XTTS v2 text to speech (Turkish, English and more) as a systemd service on port 8020 with its own paste-and-download page; the RyanAI app uses it for Read aloud. Pins PyTorch and torchaudio 2.11 + CUDA 12.6 (CUDA 12.8+ builds dropped Pascal GPUs; torchaudio cu126 stops at 2.11). Non-commercial license: run with `--agree-coqui-license`. |
 | `scripts/setup-chatterbox.sh` | Adds Chatterbox Multilingual (MIT license, Turkish) as a second RyanAI Voice engine in its own venv on 127.0.0.1:8021. The page's Engine menu switches between XTTS and Chatterbox; only one engine stays on the GPU at a time. |
 | `scripts/setup-ryanai-app.sh` | RyanAI, our own chat app on port 8090: accounts (each user sees only their chats), streaming answers, Auto model routing straight to Ollama (no hidden prompts or background jobs), thinking block, image input, read aloud via RyanAI Voice. Users: `sudo ryanai-user adduser <name>`. |
 | `scripts/setup-test-lab.sh` | Turns an Ubuntu Server machine into the test lab: Python venv, portal + 6 simulated devices as a systemd service that starts at boot and restarts on failure. |
@@ -125,16 +125,18 @@ Then reserve every device's IP address in the router (DHCP reservation), so the 
 
 ## RyanAI: local chat on the AI server
 
-Open WebUI (a chat page like Claude's) runs on the AI server in Docker, named RyanAI, and talks to Ollama on the same machine:
+RyanAI is our own chat app (`ai/ryanai_app.py` + `ai/ryanai_ui.html`), installed with `scripts/setup-ryanai-app.sh` as the `ryanai-app` service on port 8090. It talks to Ollama directly, so each request carries only the conversation itself: no hidden system prompts and no background title or tag jobs queued in front of the answer.
 
 ```bash
-sudo docker run -d --network=host -e OLLAMA_BASE_URL=http://127.0.0.1:11434 -e WEBUI_NAME=RyanAI \
-  -v open-webui:/app/backend/data --name open-webui --restart always ghcr.io/open-webui/open-webui:main
+sudo bash scripts/setup-ryanai-app.sh
+sudo ryanai-user adduser <name> --admin   # leave out --admin for other users
 ```
 
-Open `http://<ai-server-ip>:8080`. The first account created becomes the admin, so create it right away, then turn off new sign-ups.
+Open `http://<ai-server-ip>:8090`. There is no sign-up page; accounts are made only with `ryanai-user`.
 
-`ai/ryanai_auto.py` adds a model named **RyanAI Auto** that picks the best local model for each message: images go to the vision model, code and error messages to the code model, long or "analyze / step by step" requests to the big model, everything else to the fast model. Each answer starts with the model it used, so the routing can be checked by tests. Only deep requests think (on models that can), and the thinking shows in a fold-out block; quick, code and image answers come straight away. If a model fails, it answers with a fallback model. No per-model tuning is needed: the context size is set once for all models with `OLLAMA_CONTEXT_LENGTH=8192` in a systemd drop-in for ollama.service. Install: Admin Panel > Functions > + > paste the file > Save > enable.
+**Auto** picks the model for each message: images go to the vision model, code and error messages to the code model, long or "analyze / step by step" requests think on the big model, everything else goes to the fast model. If a model fails, a fallback model answers. Each answer shows the model, the mode and the time it took. The context size is set once for all models with `OLLAMA_CONTEXT_LENGTH=8192` in a systemd drop-in for ollama.service.
+
+Open WebUI was used first and removed: its hidden instructions (about 7000 tokens) and background jobs made a simple answer take over a minute on this GPU.
 
 Remote access: no port forwarding. Use a private network (Tailscale) or Cloudflare Tunnel with Cloudflare Access in front.
 
