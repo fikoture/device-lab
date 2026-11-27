@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # setup-jenkins.sh
 # Installs Jenkins LTS (official Jenkins apt repository) with Java 21 as a systemd service on port 8080.
-# Used on the AI server (aiserver); works on any Ubuntu/Debian lab machine.
+# Used on the AI server (hostname JenkinsAiServer, formerly aiserver); works on any Ubuntu/Debian lab machine.
 #
 # Usage:  sudo ./setup-jenkins.sh
 #

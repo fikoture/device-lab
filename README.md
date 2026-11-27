@@ -13,9 +13,9 @@ Every setup step lives in a script in this repo, so a new server can be prepared
 | Machine | Role at a company | What runs on it |
 |---|---|---|
 | Mac mini | Engineer's work laptop | Writes tests, pushes to GitHub |
-| Surface Book 2 (Ubuntu Server, no desktop, dead batteries, always on the charger) | Jenkins server | Jenkins controller (needs no GPU) |
-| Surface Book (1st gen, Ubuntu Server) | Test lab (staging environment) | Web portal, 6 simulated devices (systemd service), Jenkins agent |
-| Second Surface Book 2 (healthy batteries) | Local AI server | Ollama on the GTX 1060; healthy batteries cover GPU power peaks, 95 W charger |
+| Surface Book (1st gen, Ubuntu Server), hostname `test-lab` | Test lab (staging environment) + Jenkins agent | Web portal, 6 simulated devices (systemd service), Jenkins agent (label `android`, SSH), adb to the real devices |
+| Second Surface Book 2 (healthy batteries), hostname `JenkinsAiServer` | Jenkins server + local AI server | Jenkins controller on port 8080 (schedules jobs, keeps results, runs no builds itself), Ollama on the GTX 1060, RyanAI app |
+| Surface Book 2 with dead batteries | Spare | No role now; Jenkins moved to JenkinsAiServer |
 | Android tablet + phone | Real test devices | Connected to the lab with adb over Wi-Fi |
 
 Flow: push to GitHub → Jenkins sees the change → Jenkins sends the job to the agent → the agent runs the tests on the portal, the simulated devices and the real devices → results go back to Jenkins.
@@ -30,7 +30,7 @@ Flow: push to GitHub → Jenkins sees the change → Jenkins sends the job to th
 | `scripts/setup-console.sh` | Makes the text console readable on high-resolution screens (largest Terminus font, optional lower console resolution) and stops kernel info messages from flooding the console. |
 | `scripts/setup-surface-gpu.sh` | Makes the NVIDIA GPU in a Surface Book 2 usable on Ubuntu Server (linux-surface kernel + NVIDIA 580 server driver), for running local AI models on the GPU. Tested: `nvidia-smi` shows the GTX 1060 with 6 GB, CUDA 13.0. |
 | `scripts/setup-server-power.sh` | Keeps a laptop server running with the lid closed and never sleeping (logind lid settings + masked sleep targets). |
-| `scripts/setup-power-saving.sh` | Installs TLP so a laptop server uses less power on battery and goes back to normal on the charger. |
+| `scripts/setup-power-saving.sh` | Installs TLP so a laptop server uses less power on battery and goes back to normal on the charger. Installed on test-lab and JenkinsAiServer. |
 | `scripts/setup-xtts.sh` | RyanAI Voice: Coqui XTTS v2 text to speech (Turkish, English and more) as a systemd service on port 8020 with its own paste-and-download page; the RyanAI app uses it for Read aloud. Pins PyTorch and torchaudio 2.11 + CUDA 12.6 (CUDA 12.8+ builds dropped Pascal GPUs; torchaudio cu126 stops at 2.11). Non-commercial license: run with `--agree-coqui-license`. |
 | `scripts/setup-chatterbox.sh` | Adds Chatterbox Multilingual (MIT license, Turkish) as a second RyanAI Voice engine in its own venv on 127.0.0.1:8021. The page's Engine menu switches between XTTS and Chatterbox; only one engine stays on the GPU at a time. |
 | `scripts/setup-jenkins.sh` | Jenkins LTS from the official apt repository, Java 21, systemd service on port 8080 (installed on the AI server). Refuses to run if 8080 is taken. Home network only, no port forwarding. |

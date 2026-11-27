@@ -3,7 +3,7 @@
 # Prepares a lab machine (the test-lab) to be a Jenkins SSH agent: the Jenkins controller logs in over SSH
 # as the "jenkins" user, starts agent.jar, and runs test jobs here, next to the Android devices.
 #
-# Usage:  sudo ./setup-jenkins-agent.sh "ssh-ed25519 AAAA... jenkins@aiserver"
+# Usage:  sudo ./setup-jenkins-agent.sh "ssh-ed25519 AAAA... jenkins@JenkinsAiServer"
 #   The argument is the controller's PUBLIC key (safe to share). Make it on the controller with:
 #   sudo -u jenkins ssh-keygen -t ed25519 -N "" -f /var/lib/jenkins/.ssh/id_ed25519
 #   sudo cat /var/lib/jenkins/.ssh/id_ed25519.pub
