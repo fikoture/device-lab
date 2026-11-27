@@ -52,7 +52,9 @@ printf 'torch==%s\ntorchaudio==%s\ntransformers==4.57.6\n' "$TORCH" "$TORCH" > "
 "$PIP" install -c "$DIR/constraints.txt" coqui-tts torchcodec six fastapi "uvicorn[standard]" numpy
 "$DIR/venv/bin/python" -c "from TTS.api import TTS" && echo "TTS import ok"
 
-cp "$HERE/ai/xtts_server.py" "$DIR/xtts_server.py"
+# trnorm (Apache-2.0): turns written Turkish into its spoken form (numbers, dates, money, abbreviations)
+"$PIP" install -c "$DIR/constraints.txt" "trnorm @ git+https://github.com/ozguradmin/ahenk-turkish-tts"
+cp "$HERE/ai/xtts_server.py" "$HERE/ai/voice_text.py" "$DIR/"
 
 echo "== GPU check =="
 "$DIR/venv/bin/python" - <<'PY'
