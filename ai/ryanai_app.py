@@ -48,8 +48,8 @@ SYSTEM_PROMPT = os.environ.get("SYSTEM_PROMPT", (
     "Do not say which company made you or which model you are unless asked. "
     "Always answer in the user's language; in Turkish write natural, correct Turkish. "
     "Be clear and to the point. Do not invent facts; say so when you are not sure. "
-    "For health, legal or money questions give useful general information and add one short line "
-    "suggesting a professional for personal decisions."))
+    "Only when the user asks about their own health, legal or money situation, end with one short line "
+    "suggesting a professional; never add such a note to general questions."))
 MAX_MESSAGE = 20000
 MAX_IMAGE_B64 = 8_000_000
 
