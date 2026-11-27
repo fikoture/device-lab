@@ -121,5 +121,11 @@ def speak(body: SpeakBody):
         raise HTTPException(400, detail="text is empty")
     if body.language not in LANGS:
         raise HTTPException(400, detail=f"Chatterbox does not support language '{body.language}'")
-    samples, sr = engine.speak(body.text, body.language, body.temperature)
+    try:
+        samples, sr = engine.speak(body.text, body.language, body.temperature)
+    except Exception as e:
+        if "out of memory" in str(e).lower():
+            engine.unload()
+            raise HTTPException(503, detail="GPU memory is full (another model is using it); try again in a moment")
+        raise
     return Response(to_wav(samples, sr), media_type="audio/wav")

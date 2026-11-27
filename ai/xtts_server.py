@@ -47,6 +47,9 @@ MAX_CHARS = int(os.environ.get("MAX_CHARS", "5000"))
 DEFAULT_TEMPERATURE = float(os.environ.get("TEMPERATURE", "0.5"))
 # Second engine: Chatterbox Multilingual (MIT license) runs as its own service on this port, in its own venv.
 CHATTERBOX_URL = os.environ.get("CHATTERBOX_URL", "http://127.0.0.1:8021")
+# The chat models (Ollama) share the same 6 GB GPU. Before a voice engine loads, the loaded chat model is
+# asked to leave the GPU (keep_alive 0); Ollama loads it again on the next chat message.
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
 SAMPLE_RATE = 24000
 LANGS = ["tr", "en", "de", "fr", "es", "it", "pt", "pl", "nl", "ru", "ar", "cs", "zh-cn", "hu", "ko", "ja", "hi"]
 # A few of the built-in XTTS v2 speakers, under easy names. OpenAI voice names map onto them too.
@@ -151,7 +154,7 @@ class Engine:
 
 
 engine = Engine()
-app = FastAPI(title="RyanAI Voice", version="0.5.0")
+app = FastAPI(title="RyanAI Voice", version="0.6.0")
 
 
 def check_key(authorization: str, x_api_key: str):
@@ -210,6 +213,22 @@ def chatterbox_call(path: str, payload: dict = None, timeout: int = 900):
         return r.read()
 
 
+def free_gpu_from_ollama():
+    try:
+        with urllib.request.urlopen(OLLAMA_URL + "/api/ps", timeout=3) as r:
+            loaded = [m["name"] for m in json.loads(r.read()).get("models", [])]
+        for name in loaded:
+            req = urllib.request.Request(OLLAMA_URL + "/api/generate", method="POST",
+                                         data=json.dumps({"model": name, "keep_alive": 0}).encode(),
+                                         headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=30).read()
+        if loaded:
+            time.sleep(1)
+        return loaded
+    except Exception:
+        return []
+
+
 def chatterbox_up() -> bool:
     try:
         return json.loads(chatterbox_call("/health", timeout=3)).get("status") == "ok"
@@ -246,6 +265,7 @@ def speech(body: SpeechBody, authorization: str = Header(default=""), x_api_key:
     language = pick_language(text, body.language)
     spoken = normalize(text, language) if body.normalize else text
     started = time.time()
+    free_gpu_from_ollama()
     if body.engine == "chatterbox":
         if not chatterbox_up():
             raise HTTPException(503, detail="Chatterbox engine is not running (setup-chatterbox.sh)")
