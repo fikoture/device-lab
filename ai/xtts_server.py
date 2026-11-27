@@ -136,14 +136,15 @@ class Engine:
     def status(self):
         return {"loaded": self.tts is not None, "device": getattr(self, "device", None)}
 
-    def speak(self, text: str, voice: str, language: str, speed: float, temperature: float = DEFAULT_TEMPERATURE):
+    def speak(self, text: str, voice: str, language: str, speed: float, temperature: float = DEFAULT_TEMPERATURE,
+              keep_stops: bool = True):
         import numpy as np
         with self.lock:
             if self.tts is None:
                 self._load()
             self.last_used = time.time()
             audio = []
-            for piece, pause in pieces(text):
+            for piece, pause in pieces(text, keep_stops):
                 wav = self.tts.tts(text=piece, speaker=voice, language=language, split_sentences=False,
                                    speed=speed, temperature=temperature)
                 audio.append(np.asarray(wav, dtype=np.float32))
@@ -154,7 +155,7 @@ class Engine:
 
 
 engine = Engine()
-app = FastAPI(title="RyanAI Voice", version="0.6.0")
+app = FastAPI(title="RyanAI Voice", version="0.7.0")
 
 
 def check_key(authorization: str, x_api_key: str):
@@ -203,6 +204,7 @@ class SpeechBody(BaseModel):
     temperature: float = Field(default=DEFAULT_TEMPERATURE, ge=0.1, le=1.0)
     engine: str = "xtts"
     normalize: bool = True
+    keep_stops: bool = True
 
 
 def chatterbox_call(path: str, payload: dict = None, timeout: int = 900):
@@ -271,7 +273,8 @@ def speech(body: SpeechBody, authorization: str = Header(default=""), x_api_key:
             raise HTTPException(503, detail="Chatterbox engine is not running (setup-chatterbox.sh)")
         engine.unload()                      # one engine on the 6 GB GPU at a time
         try:
-            audio = chatterbox_call("/speak", {"text": spoken, "language": language, "temperature": body.temperature})
+            audio = chatterbox_call("/speak", {"text": spoken, "language": language, "temperature": body.temperature,
+                                               "keep_stops": body.keep_stops})
         except Exception as e:
             raise HTTPException(502, detail=f"Chatterbox failed: {e}")
     elif body.engine == "xtts":
@@ -280,7 +283,7 @@ def speech(body: SpeechBody, authorization: str = Header(default=""), x_api_key:
                 chatterbox_call("/unload", {})
             except Exception:
                 pass
-        audio = to_wav(engine.speak(spoken, voice, language, body.speed, body.temperature))
+        audio = to_wav(engine.speak(spoken, voice, language, body.speed, body.temperature, body.keep_stops))
     else:
         raise HTTPException(400, detail="engine must be xtts or chatterbox")
     if fmt == "mp3":
@@ -319,6 +322,7 @@ PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name=
 <div class="count" id="count">0 / %MAX%</div>
 <label for="temp">Steadiness: <span id="tempv">0.50</span> (lower is steadier, higher is livelier)</label>
 <input id="temp" type="range" min="0.2" max="0.9" step="0.05" value="0.5" style="padding:0">
+<label style="display:flex;gap:8px;align-items:center;margin-top:14px"><input id="stops" type="checkbox" checked style="width:auto"> Keep full stops at sentence ends</label>
 <label for="engine">Engine</label><select id="engine"><option value="xtts">XTTS v2 (many voices, non-commercial)</option><option value="chatterbox">Chatterbox Multilingual (one voice, MIT license)</option></select>
 <div class="row">
   <div><label for="lang">Language</label><select id="lang"><option value="auto">Detect</option><option value="tr">Turkish</option><option value="en">English</option></select></div>
@@ -345,7 +349,7 @@ $('go').onclick = async () => {
   const t = Date.now();
   try {
     const r = await fetch('/v1/audio/speech', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': $('key').value },
-      body: JSON.stringify({ input: text, voice: $('voice').value, language: $('lang').value, response_format: $('fmt').value, temperature: Number($('temp').value), engine: $('engine').value }) });
+      body: JSON.stringify({ input: text, voice: $('voice').value, language: $('lang').value, response_format: $('fmt').value, temperature: Number($('temp').value), engine: $('engine').value, keep_stops: $('stops').checked }) });
     if (!r.ok) { let d = ''; try { d = (await r.json()).detail; } catch (e) {} throw new Error(d || ('HTTP ' + r.status)); }
     const blob = await r.blob(); const url = URL.createObjectURL(blob);
     $('player').src = url; $('dl').href = url; $('dl').download = 'ryanai-voice.' + $('fmt').value;

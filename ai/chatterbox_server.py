@@ -66,14 +66,14 @@ class Engine:
             if self.model is not None and time.time() - self.last_used > IDLE_UNLOAD_S:
                 self.unload()
 
-    def speak(self, text: str, language: str, temperature: float):
+    def speak(self, text: str, language: str, temperature: float, keep_stops: bool = True):
         import numpy as np
         with self.lock:
             if self.model is None:
                 self._load()
             self.last_used = time.time()
             out = []
-            for piece, pause in pieces(text):
+            for piece, pause in pieces(text, keep_stops):
                 wav = self.model.generate(piece, language_id=language, temperature=temperature)
                 out.append(wav.squeeze().detach().cpu().numpy().astype(np.float32))
                 if pause:
@@ -90,6 +90,7 @@ class SpeakBody(BaseModel):
     text: str
     language: str = "tr"
     temperature: float = Field(default=0.8, ge=0.1, le=1.5)
+    keep_stops: bool = True
 
 
 def to_wav(samples, sr: int) -> bytes:
@@ -122,7 +123,7 @@ def speak(body: SpeakBody):
     if body.language not in LANGS:
         raise HTTPException(400, detail=f"Chatterbox does not support language '{body.language}'")
     try:
-        samples, sr = engine.speak(body.text, body.language, body.temperature)
+        samples, sr = engine.speak(body.text, body.language, body.temperature, body.keep_stops)
     except Exception as e:
         if "out of memory" in str(e).lower():
             engine.unload()

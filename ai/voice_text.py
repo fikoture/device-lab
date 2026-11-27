@@ -33,8 +33,8 @@ PAUSE_SENTENCE_S = 0.30
 PAUSE_PARAGRAPH_S = 0.70
 
 
-def pieces(text: str):
-    """Text -> list of (piece, pause_after_seconds). Final full stops are dropped; ? and ! are kept."""
+def pieces(text: str, keep_stops: bool = True):
+    """Text -> list of (piece, pause_after_seconds). With keep_stops=False the final full stop is dropped."""
     out = []
     paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
     for pi, para in enumerate(paragraphs):
@@ -53,7 +53,13 @@ def pieces(text: str):
                 if cur:
                     parts.append(cur)
             for k, part in enumerate(parts):
-                part = part.strip().rstrip(".").rstrip(",;:").strip()
+                part = part.strip()
+                if keep_stops:
+                    part = part.rstrip(",;:").strip()
+                    if part and part[-1] not in ".!?…":
+                        part += "."          # every piece ends like a sentence, so the model knows it is done
+                else:
+                    part = part.rstrip(".").rstrip(",;:").strip()
                 if not part:
                     continue
                 last_in_sentence = k == len(parts) - 1
