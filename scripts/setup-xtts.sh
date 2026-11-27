@@ -10,8 +10,9 @@
 # The script does not accept that license for you: you pass --agree-coqui-license yourself.
 #
 # GPU notes (GTX 1060 / Pascal, compute capability 6.1):
-#   - New PyTorch builds for CUDA 12.8+ and 13 dropped Pascal. PyTorch 2.14 with CUDA 12.6 is the last
-#     prebuilt wheel that still runs on it, so torch is pinned to that and kept pinned for every later
+#   - New PyTorch builds for CUDA 12.8+ and 13 dropped Pascal; CUDA 12.6 builds still run on it. torchaudio
+#     (needed by XTTS) has CUDA 12.6 wheels only up to 2.11, so torch and torchaudio are both pinned to 2.11.0 cu126,
+#     and kept pinned for every later
 #     pip install (constraints file), otherwise coqui-tts would pull a newer torch that runs on the CPU only.
 #   - The model is loaded on first use and unloaded after 5 idle minutes, so Ollama gets the GPU back.
 
@@ -30,7 +31,7 @@ fi
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 DIR=/opt/ryanai-voice
 SVC_USER=ryanai-voice
-TORCH=2.14.0
+TORCH=2.11.0
 INDEX=https://download.pytorch.org/whl/cu126
 
 apt-get update
