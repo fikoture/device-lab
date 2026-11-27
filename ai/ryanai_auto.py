@@ -2,7 +2,7 @@
 title: RyanAI Auto
 author: Fikret (Ryan) Ture
 description: Picks the best local model for each message, decides whether it should think, and streams its answer.
-version: 0.2.1
+version: 0.3.0
 """
 # Open WebUI "Pipe" function. Install: Admin Panel > Functions > + > paste this file > Save > enable.
 # It shows up as a model named "RyanAI Auto". Change which model does which job under the function's Valves.
@@ -18,9 +18,9 @@ version: 0.2.1
 
 import json
 import re
-from typing import Iterator, List, Union
+from typing import AsyncIterator, List
 
-import requests
+import httpx
 from pydantic import BaseModel, Field
 
 CODE_HINTS = re.compile(
@@ -102,15 +102,16 @@ class Pipe:
         LONG_CHARS: int = Field(default=1200, description="Messages longer than this go to the big model")
         SHOW_MODEL: bool = Field(default=True, description="Start each answer with the model name")
         THINK_ON_DEEP: bool = Field(default=True, description="Let the model think first on deep requests")
+        READ_TIMEOUT_S: int = Field(default=180, description="Give up if the model sends nothing for this many seconds")
 
     def __init__(self):
         self.valves = self.Valves()
         self._caps = {}
 
-    def _can_think(self, model: str) -> bool:
+    async def _can_think(self, client: httpx.AsyncClient, model: str) -> bool:
         if model not in self._caps:
             try:
-                r = requests.post(f"{self.valves.OLLAMA_URL}/api/show", json={"model": model}, timeout=10)
+                r = await client.post(f"{self.valves.OLLAMA_URL}/api/show", json={"model": model}, timeout=10)
                 self._caps[model] = "thinking" in (r.json().get("capabilities") or [])
             except Exception:
                 return False
@@ -119,9 +120,11 @@ class Pipe:
     def pipes(self):
         return [{"id": "ryanai-auto", "name": "RyanAI Auto"}]
 
-    def _stream(self, model: str, body: dict, think: bool) -> Iterator[str]:
+    async def _stream(self, model: str, body: dict, think: bool) -> AsyncIterator[str]:
+        """Async on purpose: a slow model must never block the Open WebUI server for other users."""
         payload = {"model": model, "messages": to_ollama(body.get("messages", [])), "stream": True}
-        if self._can_think(model):
+        client = httpx.AsyncClient(timeout=httpx.Timeout(connect=10, read=float(self.valves.READ_TIMEOUT_S), write=30, pool=10))
+        if await self._can_think(client, model):
             payload["think"] = think          # only sent to models that support it, else Ollama refuses
         options = {}
         if "temperature" in body:
@@ -131,46 +134,48 @@ class Pipe:
         if options:
             payload["options"] = options
         in_think = False
-        with requests.post(f"{self.valves.OLLAMA_URL}/api/chat", json=payload, stream=True, timeout=(10, 900)) as r:
-            r.raise_for_status()
-            for line in r.iter_lines():
-                if not line:
-                    continue
-                chunk = json.loads(line)
-                if chunk.get("error"):
-                    raise RuntimeError(chunk["error"])
-                msg = chunk.get("message") or {}
-                thought, text = msg.get("thinking"), msg.get("content")
-                if thought:
-                    if not in_think:
-                        yield "<think>\n"
-                        in_think = True
-                    yield thought
-                if text:
-                    if in_think:
-                        yield "\n</think>\n\n"
-                        in_think = False
-                    yield text
-                if chunk.get("done"):
-                    break
+        try:
+            async with client.stream("POST", f"{self.valves.OLLAMA_URL}/api/chat", json=payload) as r:
+                r.raise_for_status()
+                async for line in r.aiter_lines():
+                    if not line:
+                        continue
+                    chunk = json.loads(line)
+                    if chunk.get("error"):
+                        raise RuntimeError(chunk["error"])
+                    msg = chunk.get("message") or {}
+                    thought, text = msg.get("thinking"), msg.get("content")
+                    if thought:
+                        if not in_think:
+                            yield "<think>\n"
+                            in_think = True
+                        yield thought
+                    if text:
+                        if in_think:
+                            yield "\n</think>\n\n"
+                            in_think = False
+                        yield text
+                    if chunk.get("done"):
+                        break
+        finally:
+            await client.aclose()
         if in_think:
             yield "\n</think>\n\n"
 
-    def pipe(self, body: dict, __user__: dict = None) -> Union[str, Iterator[str]]:
+    async def pipe(self, body: dict, __user__: dict = None) -> AsyncIterator[str]:
         model, reason = choose(body.get("messages", []), self.valves)
         think = reason == "deep" and self.valves.THINK_ON_DEEP
 
-        def gen():
-            if self.valves.SHOW_MODEL:
-                yield f"*{model} ({reason})*\n\n"
+        if self.valves.SHOW_MODEL:
+            yield f"*{model} ({reason})*\n\n"
+        try:
+            async for piece in self._stream(model, body, think):
+                yield piece
+        except Exception as e:
+            fb = self.valves.FALLBACK_MODEL
+            yield f"\n\n*{model} failed ({type(e).__name__}), answering with {fb}*\n\n"
             try:
-                yield from self._stream(model, body, think)
-            except Exception as e:
-                fb = self.valves.FALLBACK_MODEL
-                yield f"\n\n*{model} failed ({type(e).__name__}), answering with {fb}*\n\n"
-                try:
-                    yield from self._stream(fb, body, False)
-                except Exception as e2:
-                    yield f"\n\nNo model could answer: {e2}"
-
-        return gen()
+                async for piece in self._stream(fb, body, False):
+                    yield piece
+            except Exception as e2:
+                yield f"\n\nNo model could answer: {e2}"
