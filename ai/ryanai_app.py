@@ -42,6 +42,14 @@ MODELS = {
 }
 FALLBACK = os.environ.get("FALLBACK_MODEL", "llama3.2:3b")
 KEEP_TURNS = 12
+# Short on purpose (about 80 tokens): small models get slower and worse at Turkish with long instructions.
+SYSTEM_PROMPT = os.environ.get("SYSTEM_PROMPT", (
+    "You are RyanAI, a private assistant running on Ryan's own home server. "
+    "Do not say which company made you or which model you are unless asked. "
+    "Always answer in the user's language; in Turkish write natural, correct Turkish. "
+    "Be clear and to the point. Do not invent facts; say so when you are not sure. "
+    "For health, legal or money questions give useful general information and add one short line "
+    "suggesting a professional for personal decisions."))
 MAX_MESSAGE = 20000
 MAX_IMAGE_B64 = 8_000_000
 
@@ -275,7 +283,8 @@ async def send(chat_id: int, body: SendBody, user=Depends(current_user)):
     reason = route(text, bool(body.image))
     model = MODELS[reason] if body.model == "auto" else body.model
     think = reason == "deep"
-    msgs = [{"role": m["role"], "content": m["content"]} for m in history]
+    msgs = [{"role": "system", "content": SYSTEM_PROMPT}] if SYSTEM_PROMPT else []
+    msgs += [{"role": m["role"], "content": m["content"]} for m in history]
     user_msg = {"role": "user", "content": text}
     if body.image:
         user_msg["images"] = [body.image]
