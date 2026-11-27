@@ -7,7 +7,10 @@ What it serves (port 8020):
   POST /v1/audio/speech     OpenAI style endpoint, so Open WebUI's "read aloud" can use it
   GET  /health              status, for checks and tests
 
-Turkish and English (plus the other XTTS languages). Long texts are split into sentences by XTTS.
+Turkish and English (plus the other XTTS languages). The text is split into sentences here, not by XTTS:
+XTTS often garbles the end of a sentence at the full stop (extra syllables, swallowed words), mostly in
+languages other than English. Each sentence is spoken on its own without its final full stop, with a short
+pause between sentences and a longer one between paragraphs. Very long sentences are split at commas.
 The model sits on the GPU only while it is used: after IDLE_UNLOAD_S seconds without a request it is
 unloaded, so Ollama gets the whole GPU back. The next request loads it again (about 10 to 20 s).
 
@@ -45,6 +48,43 @@ VOICES = {
 OPENAI_NAMES = {"alloy": "female-1", "nova": "female-2", "shimmer": "female-3",
                 "onyx": "male-1", "echo": "male-2", "fable": "male-3"}
 TURKISH_LETTERS = re.compile(r"[çğıöşüÇĞİÖŞÜ]")
+SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
+MAX_PIECE = 200            # XTTS gets unreliable on very long pieces
+PAUSE_SENTENCE_S = 0.30
+PAUSE_PARAGRAPH_S = 0.70
+
+
+def pieces(text: str):
+    """Text -> list of (piece, pause_after_seconds). Final full stops are dropped; ? and ! are kept."""
+    out = []
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    for pi, para in enumerate(paragraphs):
+        para = " ".join(para.split())
+        sentences = [x for x in SENTENCE_END.split(para) if x.strip()]
+        for si, sent in enumerate(sentences):
+            parts = [sent]
+            if len(sent) > MAX_PIECE:
+                parts, cur = [], ""
+                for chunk in re.split(r"(?<=[,;:])\s+", sent):
+                    if cur and len(cur) + len(chunk) + 1 > MAX_PIECE:
+                        parts.append(cur)
+                        cur = chunk
+                    else:
+                        cur = f"{cur} {chunk}".strip()
+                if cur:
+                    parts.append(cur)
+            for k, part in enumerate(parts):
+                part = part.strip().rstrip(".").rstrip(",;:").strip()
+                if not part:
+                    continue
+                last_in_sentence = k == len(parts) - 1
+                last_in_para = last_in_sentence and si == len(sentences) - 1
+                pause = PAUSE_PARAGRAPH_S if last_in_para and pi < len(paragraphs) - 1 else (
+                    PAUSE_SENTENCE_S if last_in_sentence else 0.12)
+                out.append((part, pause))
+    if out:
+        out[-1] = (out[-1][0], 0.0)
+    return out
 
 
 class Engine:
@@ -79,18 +119,24 @@ class Engine:
         return {"loaded": self.tts is not None, "device": getattr(self, "device", None)}
 
     def speak(self, text: str, voice: str, language: str, speed: float):
+        import numpy as np
         with self.lock:
             if self.tts is None:
                 self._load()
             self.last_used = time.time()
-            samples = self.tts.tts(text=text, speaker=VOICES[voice], language=language,
-                                   split_sentences=True, speed=speed)
-            self.last_used = time.time()
-            return samples
+            audio = []
+            for piece, pause in pieces(text):
+                wav = self.tts.tts(text=piece, speaker=VOICES[voice], language=language,
+                                   split_sentences=False, speed=speed)
+                audio.append(np.asarray(wav, dtype=np.float32))
+                if pause:
+                    audio.append(np.zeros(int(SAMPLE_RATE * pause), dtype=np.float32))
+                self.last_used = time.time()
+            return np.concatenate(audio) if audio else np.zeros(1, dtype=np.float32)
 
 
 engine = Engine()
-app = FastAPI(title="RyanAI Voice", version="0.1.0")
+app = FastAPI(title="RyanAI Voice", version="0.2.0")
 
 
 def check_key(authorization: str, x_api_key: str):
